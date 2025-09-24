@@ -24,12 +24,29 @@ class SupabaseClient:
             print(f"❌ Supabase 연결 실패: {e}")
             self._client = None
 
+    def test_connection(self):
+        """Supabase 연결을 테스트합니다."""
+        if not self._client:
+            print("❌ Supabase 클라이언트가 초기화되지 않았습니다.")
+            return False
+        try:
+            print("🔍 Supabase 연결을 테스트합니다...")
+            response = self._client.table('alpha_companies_final').select('count').execute()
+            print(f"✅ Supabase 연결 성공! 테이블 접근 가능")
+            return True
+        except Exception as e:
+            print(f"❌ Supabase 연결 테스트 실패: {e}")
+            return False
+
     def get_companies(self):
         """alpha_companies_final 테이블에서 회사 목록을 가져옵니다."""
         if not self._client:
+            print("❌ Supabase 클라이언트가 초기화되지 않았습니다.")
             return []
         try:
+            print("🔍 alpha_companies_final 테이블에서 데이터를 조회합니다...")
             response = self._client.table('alpha_companies_final').select('*').execute()
+            print(f"📊 조회 결과: {len(response.data) if response.data else 0}개 레코드")
             if response.data:
                 # Supabase에서 가져온 데이터를 앱의 company_list 형식에 맞게 변환
                 companies = []
@@ -98,7 +115,8 @@ class SupabaseClient:
                 return companies
             return []
         except Exception as e:
-            print(f"Error fetching companies from Supabase: {e}")
+            print(f"❌ Supabase에서 회사 데이터 조회 실패: {e}")
+            print(f"❌ 오류 타입: {type(e)}")
             return []
 
     def get_recommendations(self, company_name: str, is_active_only: bool = False, is_new_announcements: bool = False):

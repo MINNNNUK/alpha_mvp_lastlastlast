@@ -77,6 +77,13 @@ st.markdown("""
 def load_company_list():
     """Supabase에서 회사 목록을 로드하는 함수"""
     try:
+        # Supabase 연결 테스트
+        if hasattr(supabase_client, 'test_connection'):
+            connection_ok = supabase_client.test_connection()
+            if not connection_ok:
+                st.warning("⚠️ Supabase 연결에 실패했습니다. 샘플 데이터를 사용합니다.")
+                return get_sample_companies()
+        
         # Supabase에서 회사 목록 가져오기
         companies = supabase_client.get_companies()
         
