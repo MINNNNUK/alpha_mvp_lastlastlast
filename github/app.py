@@ -14,12 +14,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 # Supabase 클라이언트 import
 from supabase_client import supabase_client
 
-# 추천 시스템 import
-try:
-    from final_recommendation_system import FinalGovernmentSupportRecommendationSystem
-except ImportError:
-    st.warning("추천 시스템 모듈을 찾을 수 없습니다. Supabase 데이터로 실행됩니다.")
-    FinalGovernmentSupportRecommendationSystem = None
+# Supabase 기반 추천 시스템 사용
 
 # 페이지 설정
 st.set_page_config(
@@ -245,16 +240,7 @@ def show_recommendation_tab():
     """맞춤 추천 탭"""
     st.markdown('<h2 class="sub-header">🎯 맞춤 추천</h2>', unsafe_allow_html=True)
     
-    # 추천 시스템 초기화
-    if 'recommendation_system' not in st.session_state:
-        if FinalGovernmentSupportRecommendationSystem:
-            st.session_state.recommendation_system = FinalGovernmentSupportRecommendationSystem()
-            try:
-                st.session_state.recommendation_system.load_data()
-            except Exception as e:
-                st.warning(f"데이터 로드 중 오류가 발생했습니다: {str(e)}")
-        else:
-            st.session_state.recommendation_system = None
+    # Supabase 기반 추천 시스템 사용
     
     # 추천 옵션 선택
     col1, col2 = st.columns([1, 1])
