@@ -14,12 +14,20 @@ SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 class SupabaseClient:
     def __init__(self):
         if not SUPABASE_URL or not SUPABASE_ANON_KEY:
-            raise ValueError("Supabase URL and Anon Key must be set in .env file")
-        self._client: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
-        print("SupabaseClient initialized.")
+            print("⚠️ Supabase 환경변수가 설정되지 않았습니다. Streamlit Cloud에서 환경변수를 설정해주세요.")
+            self._client = None
+            return
+        try:
+            self._client: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+            print("SupabaseClient initialized.")
+        except Exception as e:
+            print(f"❌ Supabase 연결 실패: {e}")
+            self._client = None
 
     def get_companies(self):
         """alpha_companies_final 테이블에서 회사 목록을 가져옵니다."""
+        if not self._client:
+            return []
         try:
             response = self._client.table('alpha_companies_final').select('*').execute()
             if response.data:
@@ -95,6 +103,8 @@ class SupabaseClient:
 
     def get_recommendations(self, company_name: str, is_active_only: bool = False, is_new_announcements: bool = False):
         """recommend_final 테이블에서 추천 공고를 가져옵니다."""
+        if not self._client:
+            return []
         try:
             query = self._client.table('recommend_final').select('*').eq('기업명', company_name)
 
@@ -149,6 +159,8 @@ class SupabaseClient:
 
     def get_monthly_recommendations(self, company_name: str = None):
         """월별 공고 수를 가져옵니다. 회사명이 지정되면 해당 회사의 추천 공고만 대상으로 합니다."""
+        if not self._client:
+            return {i: 0 for i in range(1, 13)}
         try:
             if company_name:
                 # 특정 회사의 추천 공고만 가져오기 (전체 데이터 가져온 후 필터링)
@@ -215,6 +227,8 @@ class SupabaseClient:
 
     def get_monthly_details(self, month: int, company_name: str = None):
         """특정 월의 상세 공고 목록을 가져옵니다. 회사명이 지정되면 해당 회사의 추천 공고만 대상으로 합니다."""
+        if not self._client:
+            return []
         try:
             if company_name:
                 # 특정 회사의 추천 공고만 가져오기
