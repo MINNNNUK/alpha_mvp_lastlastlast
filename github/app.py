@@ -333,8 +333,15 @@ def show_notification_tab():
     
     try:
         # 실제 데이터 가져오기
-        all_recommendations = supabase_client.get_recommendations(is_active_only=False)
-        new_announcements = supabase_client.get_recommendations(is_new_announcements=True)
+        # 선택된 회사가 있으면 해당 회사의 추천을, 없으면 빈 리스트 반환
+        selected_company_name = st.session_state.selected_company['name'] if st.session_state.selected_company else None
+        
+        if selected_company_name:
+            all_recommendations = supabase_client.get_recommendations(company_name=selected_company_name, is_active_only=False)
+            new_announcements = supabase_client.get_recommendations(company_name=selected_company_name, is_new_announcements=True)
+        else:
+            all_recommendations = []
+            new_announcements = []
         
         # 이번 주 신규 공고 수
         new_count = len(new_announcements) if new_announcements else 0
@@ -620,7 +627,13 @@ def display_new_announcements():
     """Supabase에서 신규 공고 표시"""
     try:
         # Supabase에서 신규 공고 데이터 가져오기
-        new_announcements = supabase_client.get_recommendations(is_new_announcements=True)
+        # 선택된 회사가 있으면 해당 회사의 신규 공고를, 없으면 빈 리스트 반환
+        selected_company_name = st.session_state.selected_company['name'] if st.session_state.selected_company else None
+        
+        if selected_company_name:
+            new_announcements = supabase_client.get_recommendations(company_name=selected_company_name, is_new_announcements=True)
+        else:
+            new_announcements = []
         
         if not new_announcements:
             st.info("신규 공고가 없습니다.")
@@ -733,8 +746,97 @@ def display_sample_new_announcements():
     st.dataframe(styled_data, width='stretch', hide_index=True)
 
 def display_deadline_announcements():
-    """마감 임박 공고 표시"""
-    # 샘플 마감 임박 데이터
+    """Supabase에서 마감 임박 공고 표시"""
+    try:
+        # 선택된 회사가 있으면 해당 회사의 공고를, 없으면 모든 공고를 가져오기
+        selected_company_name = st.session_state.selected_company['name'] if st.session_state.selected_company else None
+        
+        if selected_company_name:
+            # 특정 회사의 모든 추천 공고 가져오기
+            all_recommendations = supabase_client.get_recommendations(company_name=selected_company_name, is_active_only=False)
+        else:
+            # 모든 공고 가져오기 (전체 데이터에서 마감 임박 공고만 필터링)
+            # 임시로 빈 리스트 반환 (전체 공고 조회는 성능상 권장하지 않음)
+            all_recommendations = []
+        
+        if not all_recommendations:
+            st.info("마감 임박 공고가 없습니다.")
+            return
+        
+        # 마감 임박 공고 필터링 (7일 이내 또는 상시)
+        today = datetime.now().date()
+        deadline_announcements = []
+        
+        for item in all_recommendations:
+            period_str = item.get('사업 연도', '')
+            if not period_str:
+                continue
+            
+            # 마감일 추출
+            end_date_match = re.search(r'~\s*(\d{8})', period_str)
+            days_left = None
+            
+            if end_date_match:
+                try:
+                    end_date = datetime.strptime(end_date_match.group(1), '%Y%m%d').date()
+                    days_left = (end_date - today).days
+                except ValueError:
+                    pass
+            
+            # 마감 임박 공고 조건: 7일 이내 또는 상시/예산 소진시까지
+            is_urgent = False
+            remaining_days_str = '상시'
+            
+            if '예산 소진시까지' in period_str or '상시' in period_str:
+                is_urgent = True
+                remaining_days_str = '상시'
+            elif days_left is not None and 0 <= days_left <= 7:
+                is_urgent = True
+                remaining_days_str = str(days_left)
+            
+            if is_urgent:
+                deadline_announcements.append({
+                    '공고명': item.get('사업명', ''),
+                    '지원분야': '기타',  # 기본값
+                    '지원대상': '중소기업',  # 기본값
+                    '지역': item.get('지역', ''),
+                    '마감일': period_str,
+                    '남은일수': remaining_days_str,
+                    '추천점수': item.get('최종 점수', 0),
+                    '공고URL': item.get('상세페이지 URL', '')
+                })
+        
+        if not deadline_announcements:
+            st.info("마감 임박 공고가 없습니다.")
+            return
+        
+        # DataFrame으로 변환
+        deadline_data = pd.DataFrame(deadline_announcements)
+        
+        # 추천점수 기준으로 정렬
+        deadline_data = deadline_data.sort_values('추천점수', ascending=False)
+        
+        # 남은 일수에 따른 색상 코딩
+        def highlight_urgent(row):
+            if row['남은일수'] == '상시':
+                return ['background-color: #e3f2fd; color: #000000'] * len(row)
+            elif row['남은일수'].isdigit() and int(row['남은일수']) <= 7:
+                return ['background-color: #f8d7da; color: #000000'] * len(row)
+            elif row['남은일수'].isdigit() and int(row['남은일수']) <= 14:
+                return ['background-color: #fff3cd; color: #000000'] * len(row)
+            else:
+                return ['background-color: #ffffff; color: #000000'] * len(row)
+        
+        styled_data = deadline_data.style.apply(highlight_urgent, axis=1)
+        st.dataframe(styled_data, width='stretch', hide_index=True)
+        
+    except Exception as e:
+        st.error(f"마감 임박 공고 조회 중 오류: {str(e)}")
+        st.info("샘플 데이터를 표시합니다.")
+        display_sample_deadline_announcements()
+
+def display_sample_deadline_announcements():
+    """샘플 마감 임박 공고 표시 (오류 시 백업용)"""
     deadline_data = pd.DataFrame({
         '공고명': [
             '2025년 2기 서울 AI 허브 멤버십 모집 공고',
@@ -747,7 +849,7 @@ def display_deadline_announcements():
         '지원대상': ['창업벤처', '중소기업', '창업벤처', '사회적기업', '중소기업'],
         '지역': ['서울특별시', '서울특별시', '서울특별시', '서울특별시', '전국'],
         '마감일': ['2025-10-10', '2025-12-19', '예산 소진시까지', '2025-09-30', '2025-12-31'],
-        '남은일수': [3, 45, '상시', 5, 67],
+        '남은일수': ['3', '45', '상시', '5', '67'],
         '추천점수': [85.02, 81.82, 81.50, 75.40, 53.12]
     })
     
@@ -755,9 +857,9 @@ def display_deadline_announcements():
     def highlight_urgent(row):
         if row['남은일수'] == '상시':
             return ['background-color: #e3f2fd; color: #000000'] * len(row)
-        elif isinstance(row['남은일수'], int) and row['남은일수'] <= 7:
+        elif row['남은일수'].isdigit() and int(row['남은일수']) <= 7:
             return ['background-color: #f8d7da; color: #000000'] * len(row)
-        elif isinstance(row['남은일수'], int) and row['남은일수'] <= 14:
+        elif row['남은일수'].isdigit() and int(row['남은일수']) <= 14:
             return ['background-color: #fff3cd; color: #000000'] * len(row)
         else:
             return ['background-color: #ffffff; color: #000000'] * len(row)
